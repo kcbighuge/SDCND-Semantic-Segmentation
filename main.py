@@ -68,21 +68,25 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
                                         strides=(2,2), padding='same', 
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     
-    layer4_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, 
+    # scale output of layers 3 & 4 before feeding to 1x1 convolution
+    pool3_out_scaled = tf.multiply(vgg_layer3_out, 0.0001, name='pool3_out_scaled')
+    pool4_out_scaled = tf.multiply(vgg_layer4_out, 0.01, name='pool4_out_scaled')
+
+    layer4_1x1 = tf.layers.conv2d(pool4_out_scaled, num_classes, 1, 
                                   padding='same', 
                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     
-    output = tf.add(output, layer4_1x1)  # skip connection
+    output = tf.add(output, layer4_1x1)
     output = tf.layers.conv2d_transpose(output, num_classes, 4, 
                                         strides=(2,2), 
                                         padding='same', 
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     
-    layer3_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, 
+    layer3_1x1 = tf.layers.conv2d(pool3_out_scaled, num_classes, 1, 
                                   padding='same', 
                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     
-    output = tf.add(output, layer3_1x1)  # skip connection
+    output = tf.add(output, layer3_1x1)
     output = tf.layers.conv2d_transpose(output, num_classes, 16, 
                                         strides=(8,8), padding='same', 
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
@@ -136,14 +140,16 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     # DONE: Implement function
     for e in range(epochs):
 
+        i = 0
         for images, labels in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss], 
                                feed_dict={input_image: images, 
                                           correct_label: labels, 
                                           keep_prob: 0.5, 
                                           learning_rate: 1e-4})
-
-            print("Epoch {}/{}. Training loss: {:.4f}\n".format(e+1, epochs, loss))
+            if i % 4 == 0:
+                print("Epoch {}/{}. Training loss: {:.4f}\n".format(e+1, epochs, loss))
+            i += 1
 
 tests.test_train_nn(train_nn)
 
@@ -190,7 +196,7 @@ def run():
         sess.run(tf.global_variables_initializer())
 
         # Set training parameters
-        epochs = 40
+        epochs = 20
         batch_size = 8
 
         train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image, 
